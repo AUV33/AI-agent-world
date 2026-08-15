@@ -1,0 +1,122 @@
+{
+  "agent_name": "陈子墨",
+  "dimensions": {
+    "happiness": {
+      "name": "happiness",
+      "value": 1.0,
+      "last_update": 1787009341.178382
+    },
+    "sadness": {
+      "name": "sadness",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "anger": {
+      "name": "anger",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "fear": {
+      "name": "fear",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "surprise": {
+      "name": "surprise",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "disgust": {
+      "name": "disgust",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    }
+  },
+  "history": [
+    {
+      "time": 1787009318.4887547,
+      "emotion": "calm",
+      "intensity": 0.3,
+      "reason": "平静的一天",
+      "state": {
+        "happiness": 0.53,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009318.4927554,
+      "emotion": "happy",
+      "intensity": 0.6,
+      "reason": "数学考了135分",
+      "state": {
+        "happiness": 0.71,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009327.955525,
+      "emotion": "calm",
+      "intensity": 0.3,
+      "reason": "平静的一天",
+      "state": {
+        "happiness": 0.74,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009327.9722512,
+      "emotion": "happy",
+      "intensity": 0.6,
+      "reason": "数学考了135分",
+      "state": {
+        "happiness": 0.92,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009341.1654332,
+      "emotion": "calm",
+      "intensity": 0.3,
+      "reason": "平静的一天",
+      "state": {
+        "happiness": 0.95,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009341.1753824,
+      "emotion": "happy",
+      "intensity": 0.6,
+      "reason": "数学考了135分",
+      "state": {
+        "happiness": 1,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    }
+  ],
+  "updated_at": 1787009341.178382
+}

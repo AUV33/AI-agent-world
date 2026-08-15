@@ -1,0 +1,122 @@
+{
+  "agent_name": "王浩宇",
+  "dimensions": {
+    "happiness": {
+      "name": "happiness",
+      "value": 0.86,
+      "last_update": 1787009341.178382
+    },
+    "sadness": {
+      "name": "sadness",
+      "value": 0.95,
+      "last_update": 1787009341.178382
+    },
+    "anger": {
+      "name": "anger",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "fear": {
+      "name": "fear",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "surprise": {
+      "name": "surprise",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "disgust": {
+      "name": "disgust",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    }
+  },
+  "history": [
+    {
+      "time": 1787009318.491755,
+      "emotion": "happy",
+      "intensity": 0.4,
+      "reason": "偷偷打了会游戏",
+      "state": {
+        "happiness": 0.62,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009318.4927554,
+      "emotion": "sad",
+      "intensity": 0.5,
+      "reason": "被班主任抓到玩手机",
+      "state": {
+        "happiness": 0.62,
+        "sadness": 0.65,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009327.9647267,
+      "emotion": "happy",
+      "intensity": 0.4,
+      "reason": "偷偷打了会游戏",
+      "state": {
+        "happiness": 0.74,
+        "sadness": 0.65,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009327.973254,
+      "emotion": "sad",
+      "intensity": 0.5,
+      "reason": "被班主任抓到玩手机",
+      "state": {
+        "happiness": 0.74,
+        "sadness": 0.8,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009341.1678362,
+      "emotion": "happy",
+      "intensity": 0.4,
+      "reason": "偷偷打了会游戏",
+      "state": {
+        "happiness": 0.86,
+        "sadness": 0.8,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009341.176381,
+      "emotion": "sad",
+      "intensity": 0.5,
+      "reason": "被班主任抓到玩手机",
+      "state": {
+        "happiness": 0.86,
+        "sadness": 0.95,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    }
+  ],
+  "updated_at": 1787009341.1839335
+}

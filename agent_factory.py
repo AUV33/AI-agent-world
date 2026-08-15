@@ -44,6 +44,8 @@ def load_AuvAgents_from_json(file_path):
             agent.memory = data['memory']
         if 'addressBook' in data:
             agent.addressBook = set(data['addressBook'])
+        if 'impressions' in data:
+            agent.impressions = data['impressions']
         agents[data['name']] = agent
     
 

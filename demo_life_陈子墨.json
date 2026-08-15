@@ -1,0 +1,20 @@
+{
+  "date": "2026-08-18",
+  "state": "breakfast",
+  "activity": "啃面包",
+  "location": "食堂",
+  "state_changed": 1787009318.4927554,
+  "today": {
+    "wake": null,
+    "sleep": null,
+    "meals": [
+      {
+        "time": "07:28",
+        "meal": "breakfast"
+      }
+    ],
+    "events": [],
+    "mood_changes": []
+  },
+  "history": []
+}

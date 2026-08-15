@@ -1,0 +1,122 @@
+{
+  "agent_name": "林阳",
+  "dimensions": {
+    "happiness": {
+      "name": "happiness",
+      "value": 1.0,
+      "last_update": 1787009341.178382
+    },
+    "sadness": {
+      "name": "sadness",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "anger": {
+      "name": "anger",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "fear": {
+      "name": "fear",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "surprise": {
+      "name": "surprise",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    },
+    "disgust": {
+      "name": "disgust",
+      "value": 0.5,
+      "last_update": 1787009341.178382
+    }
+  },
+  "history": [
+    {
+      "time": 1787009318.4907556,
+      "emotion": "happy",
+      "intensity": 0.5,
+      "reason": "篮球训练很顺利",
+      "state": {
+        "happiness": 0.65,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009318.4927554,
+      "emotion": "excited",
+      "intensity": 0.7,
+      "reason": "篮球比赛赢了",
+      "state": {
+        "happiness": 0.93,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009327.9611952,
+      "emotion": "happy",
+      "intensity": 0.5,
+      "reason": "篮球训练很顺利",
+      "state": {
+        "happiness": 1,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009327.9722512,
+      "emotion": "excited",
+      "intensity": 0.7,
+      "reason": "篮球比赛赢了",
+      "state": {
+        "happiness": 1,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009341.1668375,
+      "emotion": "happy",
+      "intensity": 0.5,
+      "reason": "篮球训练很顺利",
+      "state": {
+        "happiness": 1,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    },
+    {
+      "time": 1787009341.1753824,
+      "emotion": "excited",
+      "intensity": 0.7,
+      "reason": "篮球比赛赢了",
+      "state": {
+        "happiness": 1,
+        "sadness": 0.5,
+        "anger": 0.5,
+        "fear": 0.5,
+        "surprise": 0.5,
+        "disgust": 0.5
+      }
+    }
+  ],
+  "updated_at": 1787009341.1803823
+}

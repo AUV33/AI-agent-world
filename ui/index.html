@@ -1,0 +1,662 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>致敬传奇AI - 实时监控</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            padding: 20px 30px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .controls button {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .controls button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+        
+        .controls button.active {
+            background: #ff6b6b;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .time-display {
+            text-align: center;
+            font-size: 18px;
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+        
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .agent-card {
+            background: #16213e;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        
+        .agent-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+        }
+        
+        .agent-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .agent-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .agent-info h3 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .agent-info .location {
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .agent-status {
+            padding: 0 20px 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .status-badge.emotion {
+            background: rgba(255,107,107,0.3);
+            color: #ff6b6b;
+        }
+        
+        .status-badge.activity {
+            background: rgba(81,207,102,0.3);
+            color: #51cf66;
+        }
+        
+        .agent-body {
+            padding: 0 20px 20px;
+        }
+        
+        .section {
+            margin-bottom: 15px;
+        }
+        
+        .section-title {
+            font-size: 12px;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        .section-content {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #ccc;
+            background: rgba(0,0,0,0.2);
+            padding: 12px;
+            border-radius: 8px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        
+        .section-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .section-content::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 2px;
+        }
+        
+        .action-item {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .action-item:last-child {
+            border-bottom: none;
+        }
+        
+        .action-icon {
+            display: inline-block;
+            width: 20px;
+            text-align: center;
+            margin-right: 8px;
+        }
+        
+        /* 弹窗样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: #1a1a2e;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        
+        .modal-header {
+            padding: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .modal-header h2 {
+            font-size: 22px;
+        }
+        
+        .modal-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .modal-close:hover {
+            background: rgba(255,107,107,0.5);
+        }
+        
+        .modal-body {
+            padding: 25px;
+        }
+        
+        .thinking-section {
+            margin-bottom: 20px;
+        }
+        
+        .thinking-section h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .thinking-content {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            line-height: 1.8;
+            font-size: 14px;
+        }
+        
+        .thinking-content p {
+            margin-bottom: 10px;
+        }
+        
+        .thinking-content .timestamp {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* 动画 */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>致敬传奇AI - 实时监控</h1>
+        <div class="subtitle">明远中学 302 寝室</div>
+        <div class="controls">
+            <button id="btn-start" onclick="startSimulation()">开始模拟</button>
+            <button id="btn-stop" onclick="stopSimulation()" disabled>停止</button>
+            <button id="btn-refresh" onclick="refreshData()">刷新</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="time-display" id="time-display">
+            等待开始...
+        </div>
+        
+        <div class="agents-grid" id="agents-grid">
+            <!-- 角色卡片将在这里动态生成 -->
+        </div>
+    </div>
+    
+    <!-- 弹窗 -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">角色内心想法</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- 内容将在这里动态生成 -->
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 角色配置
+        const agentsConfig = [
+            {
+                name: "陈子墨",
+                color: "#00d2ff",
+                avatar: "墨",
+                location: "教学楼-高二(3)班"
+            },
+            {
+                name: "林阳",
+                color: "#51cf66",
+                avatar: "阳",
+                location: "操场"
+            },
+            {
+                name: "王浩宇",
+                color: "#ffd43b",
+                avatar: "宇",
+                location: "宿舍楼-302寝室"
+            },
+            {
+                name: "赵天磊",
+                color: "#cc5de8",
+                avatar: "磊",
+                location: "图书馆"
+            },
+            {
+                name: "孙一凡",
+                color: "#339af0",
+                avatar: "凡",
+                location: "食堂"
+            },
+            {
+                name: "周景行",
+                color: "#ff6b6b",
+                avatar: "行",
+                location: "教学楼-高二(3)班"
+            }
+        ];
+        
+        // 模拟数据
+        let agentsData = {};
+        let isRunning = false;
+        let currentRound = 0;
+        let simulationInterval = null;
+        
+        // 初始化
+        function init() {
+            agentsConfig.forEach(agent => {
+                agentsData[agent.name] = {
+                    ...agent,
+                    emotion: "平静",
+                    activity: "等待中",
+                    currentAction: "",
+                    nextPlan: "",
+                    thinking: [],
+                    memory: [],
+                    impressions: {}
+                };
+            });
+            renderAgents();
+        }
+        
+        // 渲染角色卡片
+        function renderAgents() {
+            const grid = document.getElementById('agents-grid');
+            grid.innerHTML = '';
+            
+            agentsConfig.forEach(agent => {
+                const data = agentsData[agent.name];
+                const card = document.createElement('div');
+                card.className = 'agent-card';
+                card.onclick = () => openModal(agent.name);
+                
+                card.innerHTML = `
+                    <div class="agent-header">
+                        <div class="agent-avatar" style="background: ${agent.color}">
+                            ${agent.avatar}
+                        </div>
+                        <div class="agent-info">
+                            <h3>${agent.name}</h3>
+                            <div class="location">${data.location}</div>
+                        </div>
+                    </div>
+                    <div class="agent-status">
+                        <span class="status-badge emotion">${data.emotion}</span>
+                        <span class="status-badge activity">${data.activity}</span>
+                    </div>
+                    <div class="agent-body">
+                        <div class="section">
+                            <div class="section-title">当前行动</div>
+                            <div class="section-content">
+                                ${data.currentAction || '等待行动...'}
+                            </div>
+                        </div>
+                        <div class="section">
+                            <div class="section-title">接下来打算</div>
+                            <div class="section-content">
+                                ${data.nextPlan || '暂无计划'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        // 打开弹窗
+        function openModal(agentName) {
+            const data = agentsData[agentName];
+            const modal = document.getElementById('modal-overlay');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+            
+            title.textContent = `${agentName} - 内心世界`;
+            
+            let thinkingHtml = '';
+            if (data.thinking && data.thinking.length > 0) {
+                thinkingHtml = data.thinking.map(t => `
+                    <p><strong>思考：</strong>${t.content}</p>
+                    <p class="timestamp">${t.time}</p>
+                `).join('');
+            } else {
+                thinkingHtml = '<p>暂无思考记录</p>';
+            }
+            
+            let memoryHtml = '';
+            if (data.memory && data.memory.length > 0) {
+                memoryHtml = data.memory.map(m => `<p>- ${m}</p>`).join('');
+            } else {
+                memoryHtml = '<p>暂无记忆</p>';
+            }
+            
+            let impressionHtml = '';
+            if (data.impressions && Object.keys(data.impressions).length > 0) {
+                impressionHtml = Object.entries(data.impressions).map(([name, imp]) => `
+                    <p><strong>${name}：</strong>${imp}</p>
+                `).join('');
+            } else {
+                impressionHtml = '<p>暂无印象记录</p>';
+            }
+            
+            body.innerHTML = `
+                <div class="thinking-section">
+                    <h4>内心想法</h4>
+                    <div class="thinking-content">
+                        ${thinkingHtml}
+                    </div>
+                </div>
+                
+                <div class="thinking-section">
+                    <h4>记忆</h4>
+                    <div class="thinking-content">
+                        ${memoryHtml}
+                    </div>
+                </div>
+                
+                <div class="thinking-section">
+                    <h4>对他人的印象</h4>
+                    <div class="thinking-content">
+                        ${impressionHtml}
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.add('active');
+        }
+        
+        // 关闭弹窗
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+        }
+        
+        // 更新数据显示
+        function updateDisplay(data) {
+            if (data.time) {
+                document.getElementById('time-display').textContent = data.time;
+            }
+            
+            if (data.agents) {
+                Object.entries(data.agents).forEach(([name, agentData]) => {
+                    if (agentsData[name]) {
+                        agentsData[name] = { ...agentsData[name], ...agentData };
+                    }
+                });
+                renderAgents();
+            }
+        }
+        
+        // 模拟数据更新（演示用）
+        function simulateUpdate() {
+            currentRound++;
+            
+            const allActions = [
+                {
+                    name: "陈子墨",
+                    emotion: "开心",
+                    activity: "学习",
+                    currentAction: "继续写英语作业，偶尔抬头看看窗外",
+                    nextPlan: "写完作业后去图书馆自习",
+                    thinking: [
+                        { content: "数学考得不错，心情挺好。林阳好像在找人打球，但我得把英语作业写完...", time: `第${currentRound}轮` }
+                    ],
+                    memory: ["月考数学135分，心情不错", "林阳篮球比赛赢了"]
+                },
+                {
+                    name: "林阳",
+                    emotion: "开心",
+                    activity: "运动",
+                    currentAction: "在操场练习三分球",
+                    nextPlan: "晚上和队友聚餐庆祝",
+                    thinking: [
+                        { content: "比赛赢了真爽！找陈子墨打球他不来，那就自己练会儿吧...", time: `第${currentRound}轮` }
+                    ],
+                    memory: ["篮球比赛赢了，全寝都很高兴"]
+                },
+                {
+                    name: "王浩宇",
+                    emotion: "难过",
+                    activity: "发呆",
+                    currentAction: "躺在床上发呆，想着怎么跟老妈交代",
+                    nextPlan: "晚自习找赵天磊借手机玩会儿",
+                    thinking: [
+                        { content: "被班主任抓到了，真倒霉...手机也被没收了，今晚怎么过啊...", time: `第${currentRound}轮` }
+                    ],
+                    memory: ["被班主任抓到玩手机，手机被没收"]
+                },
+                {
+                    name: "赵天磊",
+                    emotion: "平静",
+                    activity: "阅读",
+                    currentAction: "在图书馆看悬疑小说",
+                    nextPlan: "晚自习回寝室写日记",
+                    thinking: [
+                        { content: "这本小说结局真意外...陈子墨好像又在刷题，真累...", time: `第${currentRound}轮` }
+                    ],
+                    memory: ["陈子墨又在刷题"]
+                },
+                {
+                    name: "孙一凡",
+                    emotion: "开心",
+                    activity: "社交",
+                    currentAction: "在食堂和同学聊天",
+                    nextPlan: "晚自习组织班级活动",
+                    thinking: [
+                        { content: "今天心情不错，和几个同学聊得挺开心...", time: `第${currentRound}轮` }
+                    ],
+                    memory: ["和同学聊得很开心"]
+                },
+                {
+                    name: "周景行",
+                    emotion: "平静",
+                    activity: "学习",
+                    currentAction: "在教室做物理题",
+                    nextPlan: "晚自习继续复习",
+                    thinking: [
+                        { content: "这道物理题有点难，得好好想想...", time: `第${currentRound}轮` }
+                    ],
+                    memory: ["物理题有点难"]
+                }
+            ];
+            
+            // 随机选择一个角色更新
+            const randomIndex = Math.floor(Math.random() * allActions.length);
+            const action = allActions[randomIndex];
+            
+            updateDisplay({
+                time: `第${currentRound}轮 | 第1天 ${14 + (currentRound % 10)}:00`,
+                agents: {
+                    [action.name]: action
+                }
+            });
+        }
+        
+        // 开始模拟
+        function startSimulation() {
+            if (isRunning) return;
+            isRunning = true;
+            document.getElementById('btn-start').classList.add('active');
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-stop').disabled = false;
+            
+            // 每2秒更新一次
+            simulationInterval = setInterval(simulateUpdate, 2000);
+        }
+        
+        // 停止模拟
+        function stopSimulation() {
+            isRunning = false;
+            if (simulationInterval) {
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+            }
+            document.getElementById('btn-start').classList.remove('active');
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-stop').disabled = true;
+        }
+        
+        // 刷新数据
+        function refreshData() {
+            simulateUpdate();
+        }
+        
+        // 点击弹窗外部关闭
+        document.getElementById('modal-overlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+        
+        // 初始化
+        init();
+    </script>
+</body>
+</html>
