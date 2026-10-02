@@ -2,10 +2,28 @@
 import time
 import requests
 
-# 统一从环境变量读取；未设置时回退到内置默认值，便于本地直接运行。
-# 说明：内置默认 key（sk-tp-...）为腾讯 LKEAP（大模型知识引擎 Token Plan）的 HY3 key，
-# 需配套 LKEAP 端点 https://api.lkeap.cloud.tencent.com/plan/v3 与模型 hy3 使用。
-API_KEY = os.environ.get('LLM_API_KEY', os.environ.get('MIMO_API_KEY', 'sk-tp-REDACTED'))
+
+def _load_dotenv():
+    """从项目根目录的 .env 读取环境变量（若存在）。密钥不入库，仅本地使用。"""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if os.path.exists(p):
+        with open(p, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+
+
+_load_dotenv()
+
+# 统一从环境变量读取密钥，不把任何密钥硬编码进仓库。
+# 默认使用腾讯 LKEAP（大模型知识引擎 Token Plan）的 HY3 端点与模型 hy3；
+# 运行前请设置环境变量 LLM_API_KEY（或 MIMO_API_KEY）。可参考 .env.example。
+API_KEY = os.environ.get('LLM_API_KEY') or os.environ.get('MIMO_API_KEY') or ''
 BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.lkeap.cloud.tencent.com/plan/v3/chat/completions')
 MODEL = os.environ.get('LLM_MODEL', 'hy3')
 MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '3'))
@@ -15,6 +33,11 @@ TIMEOUT = int(os.environ.get('LLM_TIMEOUT', '180'))  # 单次请求超时（秒�
 
 def call_model(messages, model=None, temperature=0.7, stream=False, max_tokens=None):
     """统一的 API 调用：带重试与容错，并支持 max_tokens。"""
+    if not API_KEY:
+        raise RuntimeError(
+            "未设置 LLM_API_KEY（或 MIMO_API_KEY）环境变量，无法调用模型。\n"
+            "密钥不入库：请通过环境变量或 .env 文件提供（参考 .env.example）。"
+        )
     model = model or MODEL
     headers = {
         "Authorization": f"Bearer {API_KEY}",

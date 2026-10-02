@@ -28,7 +28,8 @@ def load_enhanced_agents(file_path):
             addressBook=data.get('addressBook', []),
             persona_cognitive=data.get('persona_cognitive', ''),
             desires=data.get('desires', []),
-            life_summary=data.get('life', '')
+            life_summary=data.get('life', ''),
+            psych=data.get('psych')
         )
         agents[data['name']] = agent
 
@@ -56,7 +57,8 @@ def load_enhanced_agents_from_data(agents_data):
             addressBook=data.get('addressBook', []),
             persona_cognitive=data.get('persona_cognitive', ''),
             desires=data.get('desires', []),
-            life_summary=data.get('life', '')
+            life_summary=data.get('life', ''),
+            psych=data.get('psych')
         )
         agents[data['name']] = agent
 

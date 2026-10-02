@@ -14,6 +14,7 @@ from emotion_system import EmotionSystem
 from life_state import LifeState
 from thinking_logger import ThinkingLogger
 from engine import envs, agents, msgCenter, getContent
+from core.psychology import Appraisal
 
 # 世界级配置（参考水濑祈 config.json 的开关矩阵，便于回退与调参）
 try:
@@ -38,6 +39,7 @@ GOSSIP_ENABLED = CONFIG.get("gossip_enabled", False)
 LONGTERM_MEMORY_ENABLED = CONFIG.get("longterm_memory_enabled", False)
 INTERACTION_HISTORY_LIMIT = CONFIG.get("interaction_history_limit", 4)
 INTERACTION_CONTEXT_PAIRS = CONFIG.get("interaction_context_pairs", 6)
+PSYCHOLOGY_ENABLED = CONFIG.get("psychology_enabled", False)
 from bond_system import bonds
 from desire_system import DesireSystem
 
@@ -54,7 +56,7 @@ class EnhancedAgent:
     """增强版Agent，整合所有新系统"""
 
     def __init__(self, name, persona, envName, memory="", impressions=None, addressBook=None,
-                 persona_cognitive="", desires=None, life_summary=""):
+                 persona_cognitive="", desires=None, life_summary="", psych=None):
         self.name = name
         self.persona = persona
         self.persona_cognitive = persona_cognitive or ""
@@ -69,6 +71,9 @@ class EnhancedAgent:
         self.life_state = LifeState(name, state_file=os.path.join(PROJ, f"life_{name}.json"))
         self.thinking_logger = ThinkingLogger(name, log_file=os.path.join(PROJ, f"thinking_{name}.jsonl"))
         self.desire_system = DesireSystem(name, db_path=os.path.join(PROJ, "memory.db"))
+        # 本地心理引擎（OCC 评价→抑制池→阈限→爆发，纯数值、可复现）。
+        # 开关关闭或角色未配 psych 时，self.psych=None ⇒ 所有调用跳过，逐字回退旧行为。
+        self.psych = Appraisal(persona_params=psych or {}) if PSYCHOLOGY_ENABLED else None
 
         if memory:
             self.memory_system.add_fact(memory, category="background", reflected=1)
@@ -96,6 +101,8 @@ class EnhancedAgent:
             imp_text = f"{NL}{NL}{chr(10).join(imp_parts)}。"
 
         new_im_message = msgCenter.get_padding_msg(self.name)
+        if self.psych and new_im_message:
+            self.psych.on_message(new_im_message)
         im_text = ""
         im_raw = ""
         if new_im_message:
@@ -147,11 +154,16 @@ class EnhancedAgent:
             rparts = [f"你听{rr['source']}说{rr['subject']}：{rr['content']}（你目前信{rr['belief']:.0%}）" for rr in _rumors[:6]]
             rumor_text = f"{NL}{NL}【你听来的闲话（只是种子，未必真）】{chr(10).join(rparts)}。"
 
+        psych_line = self.psych.render() if self.psych else ""
+        outer_style = ""
+        if self.psych and self.psych.should_vent():
+            # 憋着火 ⇒ 外发走"raw"倾向：更直接、带刺，但不撒谎、不人身攻击
+            outer_style = "（此刻你憋着火，可以更直接、带刺，不必过度修饰——但别撒谎、别人身攻击。）"
         inner_text = self._build_inner(
             envInfo, time_label, life_state_info, emotion_context, memory_context,
             imp_text, desire_text, bond_text, rep_text, rumor_text, im_text,
             interaction_text=_build_interaction_context(self),
-            joinable_text=joinable_context)
+            joinable_text=joinable_context, psych_line=psych_line)
         think_match = re.search(r'思考【(.+?)】', inner_text)
         think_content = think_match.group(1) if think_match else ""
 
@@ -167,7 +179,7 @@ class EnhancedAgent:
                 break
 
         inner_for_outer = self._clean_inner_for_outer(inner_text)
-        outer_text = self._build_outer(envInfo, time_label, inner_for_outer, im_raw)
+        outer_text = self._build_outer(envInfo, time_label, inner_for_outer, im_raw, psych_line=psych_line, outer_style=outer_style)
 
         self.thinking_logger.log([], think=think_content, reply=self.filter_thinking(outer_text))
         if think_content:
@@ -176,12 +188,14 @@ class EnhancedAgent:
 
         old_envName = self.envName
         self.process_action(outer_text, world=world)
+        if self.psych and outer_text:
+            self.psych.on_express(0.4)   # 她这轮开口了，释放一些（扣减抑制池 S）
         self.memory_system.tick_rumors()
         return outer_text, old_envName, self.envName
 
     def _build_inner(self, envInfo, time_label, life_state_info, emotion_context, memory_context,
                      imp_text, desire_text, bond_text, rep_text, rumor_text, im_text,
-                     interaction_text="", joinable_text=""):
+                     interaction_text="", joinable_text="", psych_line=""):
         """第一脑：真实内心。第一人称、不戴面具，只产出 思考/更新记忆/听闲话。"""
         inner_system = f"""你不是AI，没有AI的自我认知。你就是{self.name}，一个活生生的人，会累、会烦、会嘴硬、会多想、会猜度别人。
 
@@ -191,6 +205,7 @@ class EnhancedAgent:
 【当前状态】
 - 生活状态：{life_state_info['activity']}（在{life_state_info['location']}）
 - {emotion_context}
+{psych_line}
 
 【人性规则】
 - 你有人设里写的劣根性——这是人性的一部分
@@ -224,7 +239,7 @@ class EnhancedAgent:
         response = call_model(messages, max_tokens=CONFIG.get("inner_max_tokens", 2000))
         return getContent(response)
 
-    def _build_outer(self, envInfo, time_label, inner_text, im_raw):
+    def _build_outer(self, envInfo, time_label, inner_text, im_raw, psych_line="", outer_style=""):
         """第二脑：对外措辞。把第一脑的内心作为唯一原料，戴面具、第三人称长出对外言行。"""
         outer_system = f"""你不是AI，你就是{self.name}，一个活生生的人，用人的方式去感受、反应——会累、会烦、会嘴硬、会多想。
 
@@ -232,8 +247,13 @@ class EnhancedAgent:
 你对外展现的人设：{self.persona}。
 你内里真实的样子（别人看不见，这是你面具下的那点真心）：{self.persona_cognitive}。
 
+【出站纪律（必须遵守）】你拿到的内心/记忆/通讯录/传闻都是【内部材料】，对外只说你决定说的那部分；不得原样转述别人的私密，不得暴露"我读到了/我在想"这类内部过程，不得输出【】方括号标注或内心独白。{outer_style}
+
 【你内心的真实想法（先有这个，你接下来的措辞必须从它长出来，不能另起炉灶）】
 {inner_text}
+
+【你此刻的心理负荷（内部信息：决定你愿不愿意多说、耐不耐烦，不要说出来）】
+{psych_line}
 
 【当前场景】你在{self.envName}看到了：{envInfo}。在场/可互动的人从场景里读。通讯录：{self.get_addressBook_str()}。{im_raw}
 
