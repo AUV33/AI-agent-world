@@ -1,2 +1,7 @@
 __pycache__/
 .idea/
+*.db
+*.jsonl
+_scratch/
+runs/
+memory.db
