@@ -5,3 +5,5 @@ __pycache__/
 _scratch/
 runs/
 memory.db
+# 文档不纳入版本管理（除 README.md）
+docs/
