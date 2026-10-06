@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """enhanced_memory.py - Enhanced Memory System (SQLite persistent)"""
 import sqlite3, os, time, re, math
 from datetime import datetime
@@ -7,6 +7,10 @@ from datetime import datetime
 RUMOR_PROMOTE = 0.6   # 跨过此线 → 长成真实印象（晋升进 impressions）
 RUMOR_DEAD = 0.12     # 跌破此线 → 枯萎（不再提及）
 RUMOR_DECAY = 0.96    # 每轮自然衰减（无人强化就慢慢淡）
+
+# ★ 取用纪律用：背景/设定类。这类记忆重要度固定偏高（0.7），
+#   若不加限流会把 15 个取用名额全占了，经历（行动 0.4 / 思考 0.3）一条都进不去。
+BG_CATEGORIES = ("background", "fact")
 
 
 class EnhancedMemory:
@@ -66,12 +70,35 @@ class EnhancedMemory:
                          ("last_recalled", "REAL")):
             if col not in cols:
                 c.execute(f"ALTER TABLE memories ADD COLUMN {col} {typ}")
+        # ★ 清历史遗留：background 类的重复行（只这一类——经历类出现重复是真实发生过的事，不动）
+        dup = c.execute("SELECT count(*) - count(DISTINCT content) FROM memories "
+                        "WHERE category='background' AND agent_name=?",
+                        (self.agent_name,)).fetchone()[0]
+        if dup:
+            c.execute("DELETE FROM memories WHERE category='background' AND agent_name=? AND id NOT IN "
+                      "(SELECT MIN(id) FROM memories WHERE category='background' AND agent_name=? "
+                      "GROUP BY content)", (self.agent_name, self.agent_name))
+            print("[记忆迁移] %s：清理 background 重复行 %d 条" % (self.agent_name, dup))
         conn.commit()
         conn.close()
 
-    def add_fact(self, content, category="fact", importance=0.7, reflected=0):
+    def add_fact(self, content, category="fact", importance=0.7, reflected=0, dedup=False):
+        """写一条记忆；返回 True=写入了，False=因去重跳过。
+
+        dedup=True 时，同角色 + 同类别 + 同内容已存在就跳过。
+        ★ 背景设定类【必须】开：角色每次构造都会重写同一段背景，
+          不去重会随运行次数线性叠加（实测 sagi 41 条 / 去重后 2 条），
+          再叠加"取用即升温"就会永久霸占取用名额。
+        """
         conn = sqlite3.connect(self.db_path, timeout=10)
         c = conn.cursor()
+        if dedup:
+            row = c.execute(
+                "SELECT 1 FROM memories WHERE agent_name=? AND category=? AND content=? LIMIT 1",
+                (self.agent_name, category, content)).fetchone()
+            if row:
+                conn.close()
+                return False
         now = time.time()
         sql = ("INSERT INTO memories (agent_name,content,category,importance,created_at,created_str,last_accessed,warmth,reflected,last_recalled) "
                "VALUES (?,?,?,?,?,?,?,?,?,?)")
@@ -79,6 +106,7 @@ class EnhancedMemory:
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"), now, 0.5, reflected, now))
         conn.commit()
         conn.close()
+        return True
 
     def add_message(self, content, msg_type="conversation"):
         self.add_fact(content, category=msg_type, importance=0.4)
@@ -243,7 +271,32 @@ class EnhancedMemory:
                 score = imp or 0.5
             scored.append((score, id_, content, cat))
         scored.sort(key=lambda x: -x[0])
-        top = scored[:max_items]
+        # ★ 取用纪律（两条，缺一不可）：
+        #   ① 同内容只给一个名额——重复副本会挤占名额，且"取用即升温"会让它永久霸占；
+        #   ② 背景/设定类限流（≤1/3 名额），给经历（行动/思考/反思）留位置。
+        #   历史缺陷：15 个名额全被同一两段背景的重复副本占满，经历一条都进不去。
+        bg_cap = max(1, max_items // 3)
+        seen, top, bg_used, deferred = set(), [], 0, []
+        for item in scored:
+            content, cat = item[2], item[3]
+            if content in seen:
+                continue
+            if cat in BG_CATEGORIES and bg_used >= bg_cap:
+                deferred.append(item)          # 先让位给经历；名额没用满再补回来
+                continue
+            seen.add(content)
+            if cat in BG_CATEGORIES:
+                bg_used += 1
+            top.append(item)
+            if len(top) >= max_items:
+                break
+        for item in deferred:                   # 经历太少时补齐，不浪费名额
+            if len(top) >= max_items:
+                break
+            if item[2] in seen:
+                continue
+            seen.add(item[2])
+            top.append(item)
         # 重温即升温：把被取用的记忆最后接触时间刷新
         conn = sqlite3.connect(self.db_path, timeout=10)
         c = conn.cursor()

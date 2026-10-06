@@ -17,11 +17,13 @@ class LifeState:
         "23:00-06:00": ("睡觉", "宿舍"),
     }
 
-    def __init__(self, agent_name, state_file=None):
+    def __init__(self, agent_name, state_file=None, routine=None):
         self.agent_name = agent_name
         self.state_file = state_file or f"life_{agent_name}.json"
         self.custom_activity = None
         self.custom_location = None
+        self.sim_now = None          # 模拟时钟（datetime 或 "HH:MM"/"YYYY-MM-DD HH:MM"）；None 时回退真实时钟
+        self.routine = routine or self.SCHEDULE   # per-agent 生活轨迹；None 时用默认学生表
         self.events = []
         self._load()
 
@@ -55,21 +57,53 @@ class LifeState:
         h, m = map(int, t.split(":"))
         return h * 60 + m
 
-    def get_current_state(self):
+    @staticmethod
+    def _resolve_time(ref):
+        """把 sim_now（datetime / 'HH:MM' / 'YYYY-MM-DD HH:MM' / None）归一成 datetime。"""
+        if ref is None:
+            return datetime.now()
+        if isinstance(ref, datetime):
+            return ref
+        s = str(ref).strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%H:%M"):
+            try:
+                return datetime.strptime(s, fmt)
+            except Exception:
+                pass
+        try:
+            return datetime.strptime(s[-5:], "%H:%M")
+        except Exception:
+            return datetime.now()
+
+    def get_current_state(self, sim_now=None):
         if self.custom_activity:
             return {"activity": self.custom_activity, "location": self.custom_location or "未知"}
-        now = datetime.now()
+        now = self._resolve_time(sim_now if sim_now is not None else self.sim_now)
         current_time = now.strftime("%H:%M")
         cur = self._hm_to_min(current_time)
-        for time_range, (activity, location) in self.SCHEDULE.items():
-            start, end = time_range.split("-")
-            s, e = self._hm_to_min(start), self._hm_to_min(end)
-            if s <= e:
-                if s <= cur < e:
-                    return {"activity": activity, "location": location}
-            else:  # 跨午夜时段（如 23:00-06:00）
-                if cur >= s or cur < e:
-                    return {"activity": activity, "location": location}
+        # 支持两种 routine 格式：dict{"08:00-12:00":(act,loc)} 或 list[{"start","end","activity","location"}]
+        if isinstance(self.routine, list):
+            for seg in self.routine:
+                s = self._hm_to_min(seg["start"])
+                e = self._hm_to_min(seg["end"])
+                act = seg.get("activity", "自由活动")
+                loc = seg.get("location", "未知")
+                if s <= e:
+                    if s <= cur < e:
+                        return {"activity": act, "location": loc}
+                else:  # 跨午夜时段
+                    if cur >= s or cur < e:
+                        return {"activity": act, "location": loc}
+        else:
+            for time_range, (activity, location) in self.routine.items():
+                start, end = time_range.split("-")
+                s, e = self._hm_to_min(start), self._hm_to_min(end)
+                if s <= e:
+                    if s <= cur < e:
+                        return {"activity": activity, "location": location}
+                else:  # 跨午夜时段（如 23:00-06:00）
+                    if cur >= s or cur < e:
+                        return {"activity": activity, "location": location}
         return {"activity": "自由活动", "location": "未知"}
 
     def set_custom_activity(self, activity, location=None):
@@ -95,5 +129,5 @@ class LifeState:
 
     def get_schedule_context(self):
         state = self.get_current_state()
-        now = datetime.now().strftime("%H:%M")
+        now = self._resolve_time(self.sim_now).strftime("%H:%M")
         return f"当前时间：{now}，活动：{state['activity']}，位置：{state['location']}"

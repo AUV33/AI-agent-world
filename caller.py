@@ -1,6 +1,8 @@
-﻿import os
+import os
 import time
 import requests
+
+from llm_record import RECORDER
 
 
 def _load_dotenv():
@@ -32,17 +34,12 @@ TIMEOUT = int(os.environ.get('LLM_TIMEOUT', '180'))  # 单次请求超时（秒�
 
 
 def call_model(messages, model=None, temperature=0.7, stream=False, max_tokens=None):
-    """统一的 API 调用：带重试与容错，并支持 max_tokens。"""
-    if not API_KEY:
-        raise RuntimeError(
-            "未设置 LLM_API_KEY（或 MIMO_API_KEY）环境变量，无法调用模型。\n"
-            "密钥不入库：请通过环境变量或 .env 文件提供（参考 .env.example）。"
-        )
+    """统一的 API 调用：带重试与容错，并支持 max_tokens。
+
+    录放层（llm_record.py）先手：replay 命中就直接返回，**不需要密钥、不联网**；
+    replay 未命中默认抛错（拒绝偷偷联网）。off 模式完全不介入，行为与接入前一致。
+    """
     model = model or MODEL
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
     data = {
         "model": model,
         "messages": messages,
@@ -52,12 +49,33 @@ def call_model(messages, model=None, temperature=0.7, stream=False, max_tokens=N
     if max_tokens:
         data["max_tokens"] = max_tokens
 
+    # 键里带上端点：换了接口就不该静默命中旧记录
+    _rec_key = RECORDER.begin(data, extra=BASE_URL)
+    if _rec_key is not None:
+        _hit = RECORDER.lookup(_rec_key)
+        if _hit is not None:
+            return _hit
+        RECORDER.on_miss(_rec_key, data)
+
+    if not API_KEY:
+        raise RuntimeError(
+            "未设置 LLM_API_KEY（或 MIMO_API_KEY）环境变量，无法调用模型。\n"
+            "密钥不入库：请通过环境变量或 .env 文件提供（参考 .env.example）。"
+        )
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
     last_err = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             response = requests.post(BASE_URL, headers=headers, json=data, timeout=TIMEOUT)
             response.raise_for_status()
-            return response.json()
+            _resp = response.json()
+            if _rec_key is not None:
+                RECORDER.store(_rec_key, data, _resp)
+            return _resp
         except Exception as e:
             last_err = e
             if attempt < MAX_RETRIES:

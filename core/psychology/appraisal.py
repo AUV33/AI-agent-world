@@ -315,7 +315,8 @@ def emotion_from_appraisal(a):
 class Appraisal(object):
     """评价 → 情绪 → 抑制负荷。纯本地、无随机源、可复现。"""
 
-    def __init__(self, persona_params=None, data_dir=None, input_lex_mode="v1"):
+    def __init__(self, persona_params=None, data_dir=None, input_lex_mode="v1",
+                 state_name="appraisal_state.json"):
         self.p = dict(DEFAULTS_PERSONA)
         if persona_params:
             for k in DEFAULTS_PERSONA:
@@ -334,13 +335,16 @@ class Appraisal(object):
         self._last_ts = None
         self._last_kind = ""
         self.data_dir = data_dir
+        # ★ 状态文件名：默认与原版一致；多角色共用一个目录时由调用方给 per-agent 名字，
+        #   否则所有角色会写进同一个 appraisal_state.json 互相覆盖。
+        self.state_name = state_name or "appraisal_state.json"
         self._load()
 
     # ——— 落盘 ———
     def _path(self):
         if not self.data_dir:
             return None
-        return os.path.join(self.data_dir, "appraisal_state.json")
+        return os.path.join(self.data_dir, self.state_name)
 
     def _load(self):
         p = self._path()

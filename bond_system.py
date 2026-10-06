@@ -33,6 +33,15 @@ class BondSystem:
         conn.commit()
         conn.close()
 
+    def set_db_path(self, db_path):
+        """把关系库换到另一个文件（一次运行一个 run_dir 时用），并保证表存在。
+
+        实验隔离需要：两次运行若共用 memory.db，上一轮的羁绊会污染这一轮。
+        """
+        self.db_path = db_path
+        self._init_db()
+        return self.db_path
+
     def _key(self, a, b):
         return (a, b) if a <= b else (b, a)
 

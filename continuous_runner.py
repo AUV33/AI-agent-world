@@ -18,7 +18,7 @@
 - record_by_person.md：👤 某个人，在所有场景都干了什么
 - events.jsonl      ：原始事件流，便于后续任意聚合
 """
-import os, sys, time, random, json, argparse
+import os, sys, time, random, json, argparse, hashlib
 from datetime import datetime, timedelta
 
 PROJ = os.path.dirname(os.path.abspath(__file__))
@@ -36,6 +36,7 @@ from time_engine import TimeEngine
 from event_bus import EventBus
 from event_log import EventLog
 from run_monitor import RunMonitor
+from bond_system import bonds
 
 # ---------------- 可调参数 ----------------
 DEFAULT_BASE = "2026-09-29 12:00"   # 模拟起始时刻
@@ -46,10 +47,15 @@ MAX_SLEEP_REAL = 2.0                # 单次真实等待上限（秒），便于
 FLUSH_EVERY = 10                    # 每多少轮落盘一次事件记录
 
 
-def _interval_for(agent, sim_now):
-    """根据作息决定该角色下一次行动的间隔（模拟分钟）。"""
+def _interval_for(agent, sim_now, fixed_min=None):
+    """根据作息决定该角色下一次行动的间隔（模拟分钟）。
+
+    fixed_min 非空时，忽略作息、统一返回该固定间隔（用于"每轮 N 分钟"式推进）。
+    """
+    if fixed_min is not None:
+        return float(fixed_min)
     try:
-        st = agent.life_state.get_current_state()
+        st = agent.life_state.get_current_state(sim_now)
         activity = st.get("activity", "")
     except Exception:
         activity = ""
@@ -67,9 +73,61 @@ def reset_world_state():
     World().reset()
 
 
+def _sha256_file(path):
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+
+def _write_manifest(run_dir, agents_file, base_time, speed, max_turns, max_hours,
+                    subset, common_scene, interval_min, dry_run, seed, resume=False):
+    """把本次运行的配置与关键文件哈希写成机器可读清单（照 AgentSociety 2 的 run-dir 做法）。
+
+    字段是【声明出来】的：以后对账靠它，而不是靠"碰巧写了什么"。
+    续跑时不覆盖原始清单，而是往 resumes 里追加一条（原始配置是可追溯的证据）。
+    """
+    import enhanced_engine as _ee
+    manifest = {
+        "created": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "agents_file": os.path.abspath(agents_file),
+        "agents_sha256": _sha256_file(agents_file),
+        "world_config_sha256": _sha256_file(os.path.join(PROJ, "world_config.json")),
+        "base_time": base_time, "speed": speed,
+        "max_turns": max_turns, "max_hours": max_hours,
+        "subset": list(subset) if subset else None,
+        "common_scene": common_scene, "interval_min": interval_min,
+        "dry_run": bool(dry_run), "seed": seed,
+        "psychology_enabled": bool(getattr(_ee, "PSYCHOLOGY_ENABLED", False)),
+        "psych_state_persist": bool(getattr(_ee, "PSYCH_STATE_PERSIST", False)),
+        "llm_record_mode": os.environ.get("LLM_RECORD_MODE", "off"),
+        "llm_record_dir": os.environ.get("LLM_RECORD_DIR"),
+    }
+    p = os.path.join(run_dir, "manifest.json")
+    if resume and os.path.isfile(p):
+        try:
+            old = json.load(open(p, encoding="utf-8"))
+            old.setdefault("resumes", []).append({
+                "at": manifest["created"], "max_turns": max_turns,
+                "max_hours": max_hours, "seed": seed,
+                "agents_sha256": manifest["agents_sha256"],
+            })
+            manifest = old
+        except Exception:
+            pass
+    with open(p, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n")
+    return manifest
+
+
 def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
         max_turns=None, max_hours=None, dry_run=False, stop_event=None,
-        out_dir=None, subset=None, common_scene=None, reset_state=True):
+        out_dir=None, subset=None, common_scene=None, reset_state=True,
+        interval_min=None, run_dir=None, resume=False, seed=None):
     """连续时间多 Agent 运行时。
 
     新增参数：
@@ -78,11 +136,36 @@ def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
     - subset        : 只加载这些名字的角色（随机抽取的关联人物）
     - common_scene  : 把所有子集角色塞进同一场景（覆盖各自初始位置）
     - reset_state   : 运行前是否清空全局世界状态（多次运行间隔离）
+    - run_dir       : ★ 实验隔离目录：记忆/欲望/羁绊库、per-agent 状态文件、
+                      心理状态、事件流、监控日志全部放进去。
+                      不给则沿用仓库根目录（状态跨运行累积，不适合对照实验）。
+                      目录已存在且非空时【直接报错】，除非显式 resume=True。
+    - resume        : run_dir 已存在时接着跑（不报错）
+    - seed          : 随机种子（同时写进 manifest，便于复现）
     """
+    # ---- 实验隔离：一次运行一个 run_dir ----
+    if run_dir:
+        run_dir = os.path.abspath(run_dir)
+        if os.path.isdir(run_dir) and os.listdir(run_dir) and not resume:
+            raise RuntimeError(
+                "run_dir 已存在且非空：%s\n"
+                "  · 想接着跑上一次：resume=True / --resume\n"
+                "  · 想做干净实验：换一个新目录（建议带上 seed 与配置哈希）" % run_dir)
+        os.makedirs(run_dir, exist_ok=True)
+        _db = os.path.join(run_dir, "memory.db")
+        import enhanced_engine as _ee
+        _ee.AGENT_DB_PATH = _db
+        _ee.AGENT_STATE_DIR = run_dir
+        _ee.PSYCH_STATE_DIR = run_dir
+        bonds.set_db_path(_db)
+        out_dir = out_dir or run_dir
+    if seed is not None:
+        random.seed(seed)
+
     elog = None
     world = World()
     bus = EventBus()
-    monitor = RunMonitor()
+    monitor = RunMonitor(out_dir=(run_dir or None))
     bus.subscribe(lambda e: e.get('kind') in ('im', 'f2f', 'move'), monitor.record_event)
     turns = 0
     try:
@@ -120,6 +203,16 @@ def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
         import enhanced_engine as _ee
         _ee.EVENT_LOG = elog
 
+        # 机器可读清单：这次跑的是什么配置（对账靠它，而不是靠"碰巧写了什么"）
+        if run_dir:
+            _write_manifest(run_dir, agents_file, base_time, speed, max_turns, max_hours,
+                            subset, common_scene, interval_min, dry_run, seed, resume=resume)
+        # 续跑：先把历史事件读回来，否则 flush() 的 mode='w' 会把它抹掉
+        if run_dir and resume:
+            _n_hist = elog.load_existing()
+            if _n_hist:
+                print("[续跑] 读回历史事件 %d 条（避免覆盖）" % _n_hist)
+
         base_dt = datetime.strptime(base_time, "%Y-%m-%d %H:%M")
         # 独立调度器：只管时钟推进与派发下一个该动的角色（不含业务）
         engine_t = TimeEngine(list(world.agents.keys()), base_dt, speed)
@@ -127,7 +220,7 @@ def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
         # dry_run：用桩替换 LLM，仅验证调度/加急/时间推进逻辑，不烧 API
         if dry_run:
             for ag in world.agents.values():
-                ag.get_action = lambda envInfo, time_label="", joinable_context="", world=None, _a=ag: (
+                ag.get_action = lambda envInfo, time_label="", joinable_context="", world=None, sim_now=None, _a=ag: (
                     f"接下来一小时的动作：\n{_a.name}在{_a.envName}做日常。\n"
                     f"向【测试好友】发送【（dry-run）在呢】", _a.envName, _a.envName)
             # 场景改写与全局反思也会调 LLM，干跑时一并桩掉
@@ -150,7 +243,7 @@ def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
 
             agent = world.agents[name]
             sim_now = engine_t.sim_now
-            dt = _interval_for(agent, sim_now)
+            dt = _interval_for(agent, sim_now, fixed_min=interval_min)
             time_label = _fmt(sim_now)
             # 单角色一轮（内层→外层→落库→消息→关系→场景）
             # 注意：IM 仅为纯投递，不再强制拉接收方时钟——
@@ -163,7 +256,7 @@ def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
             try:
                 action_text, chitchat_targets = process_agent_turn(
                     agent, time_label, dt_minutes=dt, community_names=community_names,
-                    dry_run=dry_run, world=world)
+                    dry_run=dry_run, world=world, sim_now=sim_now)
             except Exception as e:
                 ok_turn = False
                 err_turn = e
@@ -174,13 +267,15 @@ def run(agents_file, base_time=DEFAULT_BASE, speed=DEFAULT_SPEED,
                                 chitchat_targets, dt_real, dt, ok=ok_turn, error=err_turn)
             if ok_turn:
                 # 事件驱动：本轮行动 / IM 发布到总线（同场景观察者经 World.perceive 看到）
-                bus.publish({'kind': 'action', 'agent': name, 'scene': agent.envName,
-                             'time': time_label, 'text': action_text})
+                # idle 轮（本轮无行动）不广播 action，避免把占位文本当真实动作
+                if action_text and action_text != "（本轮无行动）":
+                    bus.publish({'kind': 'action', 'agent': name, 'scene': agent.envName,
+                                 'time': time_label, 'text': action_text})
                 for _t in chitchat_targets:
                     bus.publish({'kind': 'im', 'frm': name, 'to': _t, 'time': time_label})
 
             # 排定该角色下一次行动（间隔随作息变化）
-            engine_t.reschedule(name, _interval_for(agent, sim_now))
+            engine_t.reschedule(name, _interval_for(agent, sim_now, fixed_min=interval_min))
 
             # 周期性全局反思（按模拟小时累计；干跑时不调 LLM）
             if (not dry_run) and REFLECTION_ENABLED and REFLECTION_INTERVAL:
@@ -228,12 +323,18 @@ def main():
     ap.add_argument("--no-reset", action="store_true", help="运行前不重置全局世界状态")
     ap.add_argument("--dry-run", action="store_true",
                    help="用桩替换 LLM，仅验证调度逻辑，不消耗 API")
+    ap.add_argument("--run-dir", default=None,
+                   help="★ 实验隔离目录：记忆/羁绊/心理状态/事件/日志全放这里；"
+                        "已存在且非空时报错（除非 --resume）")
+    ap.add_argument("--resume", action="store_true", help="run_dir 已存在时接着跑")
+    ap.add_argument("--seed", type=int, default=None, help="随机种子（写进 manifest，便于复现）")
     args = ap.parse_args()
     subset = [s.strip() for s in args.subset.split(",")] if args.subset else None
     run(args.agents, base_time=args.base, speed=args.speed,
         max_turns=args.max_turns, max_hours=args.max_hours, dry_run=args.dry_run,
         out_dir=args.out_dir, subset=subset, common_scene=args.common_scene,
-        reset_state=not args.no_reset)
+        reset_state=not args.no_reset, run_dir=args.run_dir, resume=args.resume,
+        seed=args.seed)
 
 
 if __name__ == "__main__":

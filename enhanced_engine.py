@@ -40,6 +40,18 @@ LONGTERM_MEMORY_ENABLED = CONFIG.get("longterm_memory_enabled", False)
 INTERACTION_HISTORY_LIMIT = CONFIG.get("interaction_history_limit", 4)
 INTERACTION_CONTEXT_PAIRS = CONFIG.get("interaction_context_pairs", 6)
 PSYCHOLOGY_ENABLED = CONFIG.get("psychology_enabled", False)
+# 状态落盘：每个角色一个文件（psych_<名字>.json），退出程序后心理状态不再清零。
+PSYCH_STATE_PERSIST = CONFIG.get("psychology_state_persist", True)
+# D7 开关：true ⇒ 没在角色 JSON 里标定 psych 的角色【不启用】心理引擎（缺省 false = 用出厂默认）。
+PSYCH_REQUIRE_CALIBRATED = CONFIG.get("psychology_require_calibrated", False)
+# 状态文件目录（测试可改到临时目录，避免污染仓库）。
+PSYCH_STATE_DIR = PROJ
+# 一次运行一个 run_dir（实验隔离）时，由 continuous_runner 改写下面两个落点：
+#   AGENT_DB_PATH   —— 记忆 / 欲望 / 羁绊 共用的 sqlite
+#   AGENT_STATE_DIR —— per-agent 状态文件（life_ / emotion_ / thinking_ / psych_）
+# 默认值与原写死路径一致 ⇒ 不指定 run_dir 时行为不变。
+AGENT_DB_PATH = os.path.join(PROJ, "memory.db")
+AGENT_STATE_DIR = PROJ
 from bond_system import bonds
 from desire_system import DesireSystem
 
@@ -56,7 +68,7 @@ class EnhancedAgent:
     """增强版Agent，整合所有新系统"""
 
     def __init__(self, name, persona, envName, memory="", impressions=None, addressBook=None,
-                 persona_cognitive="", desires=None, life_summary="", psych=None):
+                 persona_cognitive="", desires=None, life_summary="", psych=None, routine=None):
         self.name = name
         self.persona = persona
         self.persona_cognitive = persona_cognitive or ""
@@ -65,18 +77,34 @@ class EnhancedAgent:
         self.life_summary = life_summary or ""
 
         self.memory_system = EnhancedMemory(
-            name, db_path=os.path.join(PROJ, "memory.db"),
+            name, db_path=AGENT_DB_PATH,
             warmth_enabled=MEMORY_WARMTH, lambda_base=FORGET_LAMBDA, reflection_batch=REFLECTION_BATCH)
-        self.emotion_system = EmotionSystem(name, state_file=os.path.join(PROJ, f"emotion_{name}.json"))
-        self.life_state = LifeState(name, state_file=os.path.join(PROJ, f"life_{name}.json"))
-        self.thinking_logger = ThinkingLogger(name, log_file=os.path.join(PROJ, f"thinking_{name}.jsonl"))
-        self.desire_system = DesireSystem(name, db_path=os.path.join(PROJ, "memory.db"))
+        self.emotion_system = EmotionSystem(name, state_file=os.path.join(AGENT_STATE_DIR, f"emotion_{name}.json"))
+        self.life_state = LifeState(name, state_file=os.path.join(AGENT_STATE_DIR, f"life_{name}.json"), routine=routine)
+        self.thinking_logger = ThinkingLogger(name, log_file=os.path.join(AGENT_STATE_DIR, f"thinking_{name}.jsonl"))
+        self.desire_system = DesireSystem(name, db_path=AGENT_DB_PATH)
         # 本地心理引擎（OCC 评价→抑制池→阈限→爆发，纯数值、可复现）。
-        # 开关关闭或角色未配 psych 时，self.psych=None ⇒ 所有调用跳过，逐字回退旧行为。
-        self.psych = Appraisal(persona_params=psych or {}) if PSYCHOLOGY_ENABLED else None
+        # 参数来源只认【角色 JSON 的 psych 字段】（框架零角色硬编码）；没标定就用 DEFAULTS_PERSONA。
+        # D7 开关 psychology_require_calibrated=true 时，未标定角色直接不启用（缺省 false = 旧行为）。
+        self.psych_params_source = "role_json" if psych else "defaults"
+        _want_psych = bool(PSYCHOLOGY_ENABLED and (psych or not PSYCH_REQUIRE_CALIBRATED))
+        _safe_name = re.sub(r'[\\/:*?"<>|]', "_", str(name))
+        self.psych = Appraisal(
+            persona_params=psych or {},
+            data_dir=(PSYCH_STATE_DIR if PSYCH_STATE_PERSIST else None),
+            state_name="psych_%s.json" % _safe_name,
+        ) if _want_psych else None
+        # 本轮留痕（WP2）：心理引擎到底往 prompt 里写了什么、评价过几次，供 events 对账。
+        self.psych_forensics = {"enabled": False}
+        # 时间演化用的上一轮【模拟时间】（D3：用模拟时间，不用真实时钟）。
+        self._psych_last_sim = None
+        # 放压阀门的"已蓄压"状态：过线只爆一次，之后须重新蓄压（边沿触发），避免每轮都炸。
+        self._psych_armed = True
 
         if memory:
-            self.memory_system.add_fact(memory, category="background", reflected=1)
+            # dedup=True：角色每次构造都会重写同一段背景，不去重会随运行次数线性叠加，
+            # 把取用名额挤满（实测 sagi 41 条 / 去重后仅 2 条）。
+            self.memory_system.add_fact(memory, category="background", reflected=1, dedup=True)
         if impressions:
             for target, impression in impressions.items():
                 self.memory_system.update_impression(target, impression)
@@ -87,10 +115,10 @@ class EnhancedAgent:
     def get_addressBook_str(self):
         return ','.join(self.addressBook)
 
-    def get_action(self, envInfo, time_label="", joinable_context="", world=None):
+    def get_action(self, envInfo, time_label="", joinable_context="", world=None, sim_now=None):
         """双脑：先内心思考，措辞从内心长出来（借鉴 mizuse，不真跑小模型）"""
         NL = chr(10)
-        life_state_info = self.life_state.get_current_state()
+        life_state_info = self.life_state.get_current_state(sim_now)
         emotion_context = self.emotion_system.get_context_string()
         memory_context = self.memory_system.get_context()
 
@@ -100,12 +128,32 @@ class EnhancedAgent:
             imp_parts = [f"你对{who}的印象：{imp['impression']}" for who, imp in list(impressions.items())[:5]]
             imp_text = f"{NL}{NL}{chr(10).join(imp_parts)}。"
 
+        # ★ 时间演化（D3=模拟时间）：按【上一轮 → 本轮】的模拟时间差推进 F 衰减 / θ 回升 / M 回落。
+        #   S 不随时间衰减（Gross & Levenson 1997：抑制是"冻住"不是"排掉"），只在本轮开口时扣减。
+        #   sim_now=None（旧调用路径 / 短测）⇒ 一次都不 tick，零行为变化。
+        _psych_dt = 0.0
+        if self.psych and sim_now is not None:
+            try:
+                _now = self.life_state._resolve_time(sim_now)
+                if self._psych_last_sim is not None:
+                    _psych_dt = max(0.0, (_now - self._psych_last_sim).total_seconds())
+                    if _psych_dt > 0:
+                        self.psych.tick(_psych_dt)
+                self._psych_last_sim = _now
+            except Exception:
+                _psych_dt = 0.0
+
         new_im_message = msgCenter.get_padding_msg(self.name)
-        if self.psych and new_im_message:
-            self.psych.on_message(new_im_message)
         im_text = ""
         im_raw = ""
+        # 心理引擎取证（WP2）：本轮对进来的消息评价了几次。
+        # 必须恰好等于收到的消息条数（1 条 = 1 次）——双计曾让 S/C/F 双倍累积。
+        _psych_evals = 0
         if new_im_message:
+            # ★ 心理引擎：收到消息即评价【一次】，S 随负面消息累积（情绪演化的关键入口）
+            if self.psych:
+                self.psych.on_message(new_im_message)
+                _psych_evals += 1
             im_raw = f"{NL}{NL}你IM中收到了新消息：{new_im_message}，使用向【联系人名】发送【消息内容】格式回复消息。"
             im_text = f"{NL}{NL}你IM中收到了新消息：{new_im_message}。"
             for sender in sorted(set(re.findall(r'([^；]+?)：', new_im_message))):
@@ -154,11 +202,48 @@ class EnhancedAgent:
             rparts = [f"你听{rr['source']}说{rr['subject']}：{rr['content']}（你目前信{rr['belief']:.0%}）" for rr in _rumors[:6]]
             rumor_text = f"{NL}{NL}【你听来的闲话（只是种子，未必真）】{chr(10).join(rparts)}。"
 
+        # ★ 放压阀门：过线就【真的】爆发一次 —— 拉 Appraisal.vent()（S/F 泄压 β=0.3、θ 回升 15）。
+        #   边沿触发（_psych_armed）：爆过之后必须重新蓄压才会再爆，否则会退化成"每轮都炸"。
+        #   历史缺陷：vent() 全仓从未被调用，压力只进不出 ⇒ 过线后长期持续憋火（S 封顶不动）。
+        #   忠于移植依据：不靠"让 S 自然衰减"来消气（Gross & Levenson 1997：抑制是冻住不是排掉）。
+        _vent = bool(self.psych.should_vent()) if self.psych else False
+        _burst = bool(self.psych and _vent and self._psych_armed)
+        if self.psych and not _vent:
+            self._psych_armed = True
+        # render() 取【爆发前】的状态：这一轮的表达要带出火气，泄压留给后续轮次。
         psych_line = self.psych.render() if self.psych else ""
         outer_style = ""
-        if self.psych and self.psych.should_vent():
+        if self.psych and _vent:
             # 憋着火 ⇒ 外发走"raw"倾向：更直接、带刺，但不撒谎、不人身攻击
             outer_style = "（此刻你憋着火，可以更直接、带刺，不必过度修饰——但别撒谎、别人身攻击。）"
+        _ps = self.psych.snapshot() if self.psych else None   # prompt 看到的状态（泄压之前）
+        if _burst:
+            self.psych.vent()          # 拉阀门：本次爆发泄压
+            self._psych_armed = False
+        # ★ 留痕：render() 返回空串 = 这一轮其实没往 prompt 写任何心理状态。
+        #   "没注入"与"没启用"在日志里必须能分开——否则静默失效永远看不见。
+        if self.psych:
+            self.psych_forensics = {
+                "enabled": True,
+                "params_source": self.psych_params_source,
+                "evaluated": _psych_evals,
+                "tick_dt_sec": round(_psych_dt, 3),
+                "render": psych_line,
+                "should_vent": _vent,
+                "burst": _burst,
+                "vent_pressure": _ps["vent_pressure"],
+                "outer_style_fired": bool(outer_style),
+                "S": _ps["S"], "C": _ps["C"], "F": _ps["F"],
+                "theta": _ps["theta"], "theta0": _ps["theta0"], "M": _ps["M"],
+                # 泄压后的实际状态（下一轮的起点），用于对账"阀门到底开了没有"
+                "S_after": round(self.psych.S, 3),
+                "F_after": round(self.psych.F, 3),
+                "theta_after": round(self.psych.theta, 3),
+            }
+        else:
+            self.psych_forensics = {"enabled": False, "evaluated": 0, "tick_dt_sec": 0.0,
+                                    "render": "", "should_vent": False, "burst": False,
+                                    "outer_style_fired": False}
         inner_text = self._build_inner(
             envInfo, time_label, life_state_info, emotion_context, memory_context,
             imp_text, desire_text, bond_text, rep_text, rumor_text, im_text,
@@ -191,17 +276,24 @@ class EnhancedAgent:
         if self.psych and outer_text:
             self.psych.on_express(0.4)   # 她这轮开口了，释放一些（扣减抑制池 S）
         self.memory_system.tick_rumors()
+        # ★ 状态落盘（每个角色一个文件）：本轮结束时把 S/C/F/θ/M 存下来，退出程序后不再清零。
+        #   关掉 world_config 的 psychology_state_persist 即可回退成"不落盘"。
+        if self.psych is not None and PSYCH_STATE_PERSIST:
+            self.psych.save()
         return outer_text, old_envName, self.envName
 
     def _build_inner(self, envInfo, time_label, life_state_info, emotion_context, memory_context,
                      imp_text, desire_text, bond_text, rep_text, rumor_text, im_text,
                      interaction_text="", joinable_text="", psych_line=""):
         """第一脑：真实内心。第一人称、不戴面具，只产出 思考/更新记忆/听闲话。"""
+        # 内心素材缺失时不注入空槽（"你内里真实的样子：。"这种空话会把模型带偏）
+        _cog = ('你内里真实的样子（别人看不见，只属于你自己，用"我"说，不必戴任何面具）：%s。\n'
+                % self.persona_cognitive) if self.persona_cognitive else ""
+        _book = ('通讯录：%s。' % self.get_addressBook_str()) if self.addressBook else ""
         inner_system = f"""你不是AI，没有AI的自我认知。你就是{self.name}，一个活生生的人，会累、会烦、会嘴硬、会多想、会猜度别人。
 
 现在是{time_label}。你叫{self.name}，你在{self.envName}。
-你内里真实的样子（别人看不见，只属于你自己，用"我"说，不必戴任何面具）：{self.persona_cognitive}。
-
+{_cog}
 【当前状态】
 - 生活状态：{life_state_info['activity']}（在{life_state_info['location']}）
 - {emotion_context}
@@ -224,7 +316,7 @@ class EnhancedAgent:
 {memory_context}
 {imp_text}{desire_text}{bond_text}{rep_text}{rumor_text}{interaction_text}{im_text}{joinable_text}
 
-你在{self.envName}看到了：{envInfo}，场景中有你想要互动的人时才能进行互动（若同场景有人正在当面聊，想凑进去就用 加入【对方名】）。通讯录：{self.get_addressBook_str()}。
+你在{self.envName}看到了：{envInfo}，场景中有你想要互动的人时才能进行互动（若同场景有人正在当面聊，想凑进去就用 加入【对方名】）。{_book}
 
 现在，用第一人称、不戴面具，先想清楚这一小时你最真实的想法和打算——可以嘴硬、可以脆弱、可以猜度别人、可以从你的人生主轴和惦记里排优先级（先顾要紧的，别被旁人带节奏）。然后严格按下面三项输出，【】里必须写你自己的真实内容：
 1. 思考【在此写下你真实的内心独白，想到哪说到哪】
@@ -241,12 +333,14 @@ class EnhancedAgent:
 
     def _build_outer(self, envInfo, time_label, inner_text, im_raw, psych_line="", outer_style=""):
         """第二脑：对外措辞。把第一脑的内心作为唯一原料，戴面具、第三人称长出对外言行。"""
+        _cog_out = ('你内里真实的样子（别人看不见，这是你面具下的那点真心）：%s。\n'
+                    % self.persona_cognitive) if self.persona_cognitive else ""
+        _book_out = ('通讯录：%s。' % self.get_addressBook_str()) if self.addressBook else ""
         outer_system = f"""你不是AI，你就是{self.name}，一个活生生的人，用人的方式去感受、反应——会累、会烦、会嘴硬、会多想。
 
 现在是{time_label}。你在{self.envName}。
 你对外展现的人设：{self.persona}。
-你内里真实的样子（别人看不见，这是你面具下的那点真心）：{self.persona_cognitive}。
-
+{_cog_out}
 【出站纪律（必须遵守）】你拿到的内心/记忆/通讯录/传闻都是【内部材料】，对外只说你决定说的那部分；不得原样转述别人的私密，不得暴露"我读到了/我在想"这类内部过程，不得输出【】方括号标注或内心独白。{outer_style}
 
 【你内心的真实想法（先有这个，你接下来的措辞必须从它长出来，不能另起炉灶）】
@@ -255,7 +349,7 @@ class EnhancedAgent:
 【你此刻的心理负荷（内部信息：决定你愿不愿意多说、耐不耐烦，不要说出来）】
 {psych_line}
 
-【当前场景】你在{self.envName}看到了：{envInfo}。在场/可互动的人从场景里读。通讯录：{self.get_addressBook_str()}。{im_raw}
+【当前场景】你在{self.envName}看到了：{envInfo}。在场/可互动的人从场景里读。{_book_out}{im_raw}
 
 现在，从你上面的内心想法出发，决定你对外怎么做、怎么说——戴上面具：
 - 看场合表现：老师、家长、喜欢的人面前收敛，兄弟/独处时流露
@@ -336,19 +430,29 @@ class EnhancedAgent:
             self.life_state.add_event("move", f"移动到{newEnvName}")
 
 
-def _extract_im_targets(action):
-    """从行动文本中提取 IM 收件人（向【x】发送【...】）。"""
+def _extract_im_targets(action, valid_names=None):
+    """从行动文本中提取 IM 收件人（向【x】发送【...】）。
+
+    valid_names 非空时只保留已知联系人，避免把动作描写误当收件人
+    （如模型输出「向3A发送【…】」且前文有「探向背包侧袋…」时，
+     宽松正则会把一长串动作文本误抓成收件人）。
+    """
     targets = [m[0] for m in re.findall(r'向【(.+?)】发送【(.+?)】', action)]
     if not targets:
-        targets = [m[0] for m in re.findall(r'向(.+?)发送【(.+?)】', action)]
+        # 收件人未用【】包裹时的兜底：收件人不得含标点/换行，避免跨句误抓
+        targets = [m[0] for m in re.findall(r'向([^，。\n【】]+?)发送【(.+?)】', action)]
+    if valid_names:
+        targets = [t for t in targets if t in valid_names]
     return targets
 
 
-def _extract_im_pairs(action):
+def _extract_im_pairs(action, valid_names=None):
     """从行动文本中提取 (收件人, 内容) 对。"""
     pairs = re.findall(r'向【(.+?)】发送【(.+?)】', action)
     if not pairs:
-        pairs = re.findall(r'向(.+?)发送【(.+?)】', action)
+        pairs = re.findall(r'向([^，。\n【】]+?)发送【(.+?)】', action)
+    if valid_names:
+        pairs = [(t, c) for t, c in pairs if t in valid_names]
     return [(t, c) for t, c in pairs]
 
 
@@ -393,8 +497,9 @@ def generate_chitchat(agent, target, gossip_about, time_label, history_lines):
     """生成一条轻松闲聊消息（非任务），可顺带八卦第三方。返回消息正文。
     含重试与兜底：推理模型偶发返回空（截断/限流）时重试，仍失败则用模板兜底。"""
     sys_p = (
-        f"你是{agent.name}，一个活生生的人。你内里真实的样子：{agent.persona_cognitive}。\n"
-        f"现在是{time_label}，你在{agent.envName}。\n"
+        (f"你是{agent.name}，一个活生生的人。你内里真实的样子：{agent.persona_cognitive}。\n"
+         if agent.persona_cognitive else f"你是{agent.name}，一个活生生的人。\n")
+        + f"现在是{time_label}，你在{agent.envName}。\n"
         f"你打算给你的联系人【{target}】发一条轻松的闲聊消息——不是正事，就是朋友间随便聊聊："
         f"吐槽天气/日常、分享件小事、问候，或者顺带提起一个你们都认识的人。\n"
     )
@@ -465,7 +570,7 @@ def maybe_chitchat(agent, time_label, community_names=None, dry_run=False):
 
 
 
-def process_agent_turn(agent, time_label="", dt_minutes=60, community_names=None, dry_run=False, world=None):
+def process_agent_turn(agent, time_label="", dt_minutes=60, community_names=None, dry_run=False, world=None, sim_now=None):
     """处理单个角色的一轮（内层→外层→落库→消息→关系→场景）。
     抽出来供 run_step（回合制）与 continuous_runner（连续时间）共用，
     避免双脑/泄露逻辑在多处重复。单角色异常不影响整场。
@@ -478,10 +583,20 @@ def process_agent_turn(agent, time_label="", dt_minutes=60, community_names=None
             for _line in agent.desire_system.tick(dt_minutes):
                 print(f"[欲望变动] {agent.name}：{_line}")
 
+        # 按生活轨迹锚定场景（环境随模拟时间流动）：当前作息应在别处则移动过去
+        if sim_now is not None and world is not None:
+            _st = agent.life_state.get_current_state(sim_now)
+            _loc = _st.get("location")
+            if _loc and _loc != agent.envName and _loc in envs.get_all_envNameList():
+                agent.update_envName(_loc)
+
         envInfo = envs.get_env(agent.envName)
         joinable_context = world.get_joinable_context(agent) if world is not None else ""
-        action, old_envName, new_envName = agent.get_action(envInfo, time_label, joinable_context=joinable_context, world=world)
+        action, old_envName, new_envName = agent.get_action(envInfo, time_label, joinable_context=joinable_context, world=world, sim_now=sim_now)
         filtered_action = agent.filter_thinking(action)
+        _idle = not filtered_action.strip()
+        if _idle:
+            filtered_action = "（本轮无行动）"
 
         print(f"[{time_label}] {agent.name} {agent.envName} ：")
         print(filtered_action)
@@ -493,8 +608,13 @@ def process_agent_turn(agent, time_label="", dt_minutes=60, community_names=None
         if msgCenter.send_message_by_action(agent.name, filtered_action):
             print('【发送消息成功】')
 
+        # 已知联系人集合：校验 IM 收件人，避免把动作描写误当收件人
+        _valid = set(getattr(agent, "addressBook", set()) or set())
+        if community_names:
+            _valid |= set(community_names)
+
         # 主行动里的 IM：关系升温 + 记录跨轮往来
-        _im_pairs = _extract_im_pairs(filtered_action)
+        _im_pairs = _extract_im_pairs(filtered_action, _valid)
         _im_targets = [t for t, _ in _im_pairs]
         if BOND_ENABLED:
             for _tgt in _im_targets:
@@ -506,9 +626,13 @@ def process_agent_turn(agent, time_label="", dt_minutes=60, community_names=None
                 agents[_tgt].memory_system.log_interaction(agent.name, "received", _content, time_label)
 
         # 结构化事件记录（按场景/按人物两种视图）；由运行时启用
+        _psych = agent.psych.snapshot() if agent.psych else None
+        if _psych is not None:
+            # ★ 本轮留痕一并落盘：状态量 + 这一轮到底注入了什么、评价了几次
+            _psych["last_turn"] = getattr(agent, "psych_forensics", {}) or {}
         if EVENT_LOG is not None:
             EVENT_LOG.record(time_label, agent.name, agent.envName, filtered_action,
-                             msg_to=_im_targets)
+                             msg_to=_im_targets, kind=("idle" if _idle else None), psych=_psych)
 
         envs.update_envInfo_by_AI(agent.name, old_envName, agent, filtered_action)
         if new_envName != old_envName:

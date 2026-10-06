@@ -28,5 +28,7 @@
   "longterm_memory_enabled": true,
   "interaction_history_limit": 4,
   "interaction_context_pairs": 6,
-  "psychology_enabled": false
+  "psychology_enabled": false,
+  "psychology_state_persist": true,
+  "psychology_require_calibrated": false
 }

@@ -24,13 +24,15 @@ class EventLog:
         self._by_scene = defaultdict(list)
         self._by_person = defaultdict(list)
 
-    def record(self, time_label, agent, scene, action, msg_to=None, kind=None):
-        """记一条行动事件。msg_to 为接收方列表（IM 时）；kind 标记类型（如 chitchat）。"""
+    def record(self, time_label, agent, scene, action, msg_to=None, kind=None, psych=None):
+        """记一条行动事件。msg_to 为接收方列表（IM 时）；kind 标记类型（如 chitchat）；psych 为心理引擎快照。"""
         ev = {"time": time_label, "agent": agent, "scene": scene, "action": action}
         if msg_to:
             ev["to"] = list(msg_to)
         if kind:
             ev["kind"] = kind
+        if psych:
+            ev["psych"] = psych
         self.events.append(ev)
         self._by_scene[scene].append(ev)
         self._by_person[agent].append(ev)
@@ -42,6 +44,32 @@ class EventLog:
         if t:
             return prefix + " → 发给【" + "、".join(t) + "】"
         return prefix
+
+    def load_existing(self, path=None):
+        """把已有的事件流读回来（续跑时【必须】调用）。
+
+        flush() 用的是 mode='w' 全量重写，而 self.events 只装本次进程内的事件 ⇒
+        续跑若不先回读，上一次的事件流会被直接抹掉。
+        返回读回的事件条数。
+        """
+        p = path or self.raw_path
+        if not os.path.isfile(p):
+            return 0
+        n = 0
+        with open(p, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue          # 半行/坏行跳过，不影响其余历史
+                self.events.append(ev)
+                self._by_scene[ev.get("scene")].append(ev)
+                self._by_person[ev.get("agent")].append(ev)
+                n += 1
+        return n
 
     def flush(self):
         """落盘：原始流 + 两种视图。幂等，可多次调用。"""

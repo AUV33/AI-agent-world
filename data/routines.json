@@ -1,0 +1,95 @@
+{
+  "AUV": [
+    {"start": "08:00", "end": "12:00", "activity": "接单画画、给网友做技术指导，多任务轰炸下脑壳有点晕", "location": "泾县-AUV家"},
+    {"start": "12:00", "end": "14:00", "activity": "瘫着回血、刷手机放空，被催活时心里嘀咕'新号别搞老号也别搞'", "location": "泾县-AUV家"},
+    {"start": "14:00", "end": "18:00", "activity": "赶稿，顺便啃3A要求的日语（留学前提），学不进就烦躁", "location": "泾县-AUV家"},
+    {"start": "18:00", "end": "22:00", "activity": "自由活动、回IM消息、偶尔再接个小单", "location": "泾县-AUV家"},
+    {"start": "22:00", "end": "08:00", "activity": "熬夜画画/失眠刷手机，深夜才迷糊睡着", "location": "泾县-AUV家"}
+  ],
+  "至": [
+    {"start": "09:00", "end": "12:00", "activity": "在家捣鼓UE4项目，嘴上凶巴巴其实容易紧张", "location": "泾县-至家"},
+    {"start": "12:00", "end": "13:30", "activity": "午饭、刷手机，盘算怎么'技术支援'接近AUV", "location": "泾县-至家"},
+    {"start": "13:30", "end": "18:00", "activity": "做UE4 demo，偶尔找AUV请教（借口技术支援）", "location": "泾县-至家"},
+    {"start": "18:00", "end": "22:00", "activity": "找AUV聊天、打游戏，音量不自觉变小", "location": "泾县-至家"},
+    {"start": "22:00", "end": "09:00", "activity": "熬夜、睡懒觉，第二天又起晚", "location": "泾县-至家"}
+  ],
+  "sagi": [
+    {"start": "07:00", "end": "08:00", "activity": "起床、套改短校服裙，冲去学校", "location": "泾县-sagi家"},
+    {"start": "08:00", "end": "12:00", "activity": "在泾县三中上3D建模课，活力满满像小炮弹", "location": "泾县三中"},
+    {"start": "12:00", "end": "14:00", "activity": "午休、和同学玩迷你世界，超——级炫酷", "location": "泾县三中"},
+    {"start": "14:00", "end": "17:30", "activity": "下午课，偶尔走神想找AUV撒娇求助", "location": "泾县三中"},
+    {"start": "17:30", "end": "22:00", "activity": "回家、画点东西、写迷你世界作业", "location": "泾县-sagi家"},
+    {"start": "22:00", "end": "07:00", "activity": "睡觉", "location": "泾县-sagi家"}
+  ],
+  "黑毛黑框厨": [
+    {"start": "06:30", "end": "07:00", "activity": "起床、整理考究校服，深呼吸备战高考", "location": "黑毛黑框厨家"},
+    {"start": "07:00", "end": "12:00", "activity": "在泾县三中高三高考班复习/上课，表面优雅内心慌", "location": "泾县三中"},
+    {"start": "12:00", "end": "14:00", "activity": "午休、偷偷看电锯人周边，紧张时绞文件夹边缘", "location": "泾县三中"},
+    {"start": "14:00", "end": "17:30", "activity": "下午刷题/听课，提到动漫会瞬间狂热", "location": "泾县三中"},
+    {"start": "17:30", "end": "22:00", "activity": "晚自习或回家复习，脸颊易泛红", "location": "黑毛黑框厨家"},
+    {"start": "22:00", "end": "06:30", "activity": "睡觉", "location": "黑毛黑框厨家"}
+  ],
+  "躺啊堂": [
+    {"start": "10:00", "end": "13:00", "activity": "睡懒觉刚醒，抱着速写本画两笔铁胃阿花", "location": "躺啊堂家"},
+    {"start": "13:00", "end": "18:00", "activity": "画速写、搞创作，懒洋洋但提到创作就打起精神", "location": "躺啊堂家"},
+    {"start": "18:00", "end": "22:00", "activity": "吃饭、刷灵感、缠着AUV要胶水改草稿", "location": "躺啊堂家"},
+    {"start": "22:00", "end": "04:00", "activity": "熬夜爆画、灵感爆发，黑眼圈更深", "location": "躺啊堂家"},
+    {"start": "04:00", "end": "10:00", "activity": "睡觉", "location": "躺啊堂家"}
+  ],
+  "蜂兵老师": [
+    {"start": "07:00", "end": "08:00", "activity": "到校准备，目光锐利扫视教室", "location": "泾县三中"},
+    {"start": "08:00", "end": "12:00", "activity": "在泾县三中讲《计算机网络基础》，条理清晰", "location": "泾县三中"},
+    {"start": "12:00", "end": "14:00", "activity": "午休、备课，留意学生小动作", "location": "泾县三中"},
+    {"start": "14:00", "end": "17:30", "activity": "下午课/批改作业，对学生严格", "location": "泾县三中"},
+    {"start": "17:30", "end": "22:00", "activity": "回家、备课、休息", "location": "泾县-蜂兵家"},
+    {"start": "22:00", "end": "07:00", "activity": "睡觉", "location": "泾县-蜂兵家"}
+  ],
+  "易先生": [
+    {"start": "09:00", "end": "12:00", "activity": "码字更番茄爽文，大龄剩男的日常", "location": "易县"},
+    {"start": "12:00", "end": "14:00", "activity": "午饭、摸鱼刷手机", "location": "易县"},
+    {"start": "14:00", "end": "18:00", "activity": "码字、看读者反馈，盘算剧情", "location": "易县"},
+    {"start": "18:00", "end": "22:00", "activity": "在粉丝群互动（含AUV）、休息", "location": "易县"},
+    {"start": "22:00", "end": "09:00", "activity": "熬夜码字或睡觉", "location": "易县"}
+  ],
+  "3A": [
+    {"start": "08:00", "end": "09:00", "activity": "到上海-鹰角网络、开晨会，3D艺术家上线", "location": "上海-鹰角网络"},
+    {"start": "09:00", "end": "12:00", "activity": "做3D资产、审AUV的脸部重拓扑稿，设静默倒计时", "location": "上海-鹰角网络"},
+    {"start": "12:00", "end": "13:30", "activity": "午饭、摸鱼", "location": "上海-鹰角网络"},
+    {"start": "13:30", "end": "18:00", "activity": "工作、远程催AUV下午3点前交稿", "location": "上海-鹰角网络"},
+    {"start": "18:00", "end": "22:00", "activity": "回家/加班、休息，好奇AUV留学最后咋样", "location": "上海-3A家"},
+    {"start": "22:00", "end": "08:00", "activity": "睡觉", "location": "上海-3A家"}
+  ],
+  "AUV父亲": [
+    {"start": "07:00", "end": "08:00", "activity": "起床，粗暴地开始一天", "location": "泾县-AUV家"},
+    {"start": "08:00", "end": "12:00", "activity": "干活/在家晃悠，对AUV高考失利余怒未消", "location": "泾县-AUV家"},
+    {"start": "12:00", "end": "14:00", "activity": "午饭", "location": "泾县-AUV家"},
+    {"start": "14:00", "end": "18:00", "activity": "打麻将/干活，听说留学觉得是骗局", "location": "泾县-AUV家"},
+    {"start": "18:00", "end": "22:00", "activity": "晚饭、看电视、骂AUV要被卖到柬埔寨", "location": "泾县-AUV家"},
+    {"start": "22:00", "end": "07:00", "activity": "睡觉", "location": "泾县-AUV家"}
+  ],
+  "日本签证官": [
+    {"start": "09:00", "end": "12:00", "activity": "在上海-日本领事馆审理学生签证申请", "location": "上海-日本领事馆"},
+    {"start": "12:00", "end": "13:30", "activity": "午休", "location": "上海-日本领事馆"},
+    {"start": "13:30", "end": "18:00", "activity": "继续审理签证，判断是否符合赴日要求", "location": "上海-日本领事馆"},
+    {"start": "18:00", "end": "09:00", "activity": "下班回住处休息", "location": "上海-签证官住处"}
+  ],
+  "日本电子专门学校admission面试官": [
+    {"start": "09:00", "end": "12:00", "activity": "在日本远程面试学生、审入学材料", "location": "日本"},
+    {"start": "12:00", "end": "13:30", "activity": "午休", "location": "日本"},
+    {"start": "13:30", "end": "18:00", "activity": "继续面试/审材料，判断是否符合入学要求", "location": "日本"},
+    {"start": "18:00", "end": "09:00", "activity": "休息", "location": "日本"}
+  ],
+  "AUV小姨": [
+    {"start": "08:00", "end": "12:00", "activity": "刷手机接德国爱他美奶粉代购单、打包", "location": "泾县-AUV小姨家"},
+    {"start": "12:00", "end": "14:00", "activity": "午饭、瘫沙发刷短视频，吐槽泾县风爱管闲事", "location": "泾县-AUV小姨家"},
+    {"start": "14:00", "end": "18:00", "activity": "发货、和德国姨父视频对账奶粉库存", "location": "泾县-AUV小姨家"},
+    {"start": "18:00", "end": "22:00", "activity": "晚饭、担心AUV被留学骗子坑", "location": "泾县-AUV小姨家"},
+    {"start": "22:00", "end": "08:00", "activity": "睡觉", "location": "泾县-AUV小姨家"}
+  ],
+  "AUV姨父": [
+    {"start": "08:00", "end": "12:00", "activity": "在德国超市进货爱他美奶粉", "location": "德国"},
+    {"start": "12:00", "end": "13:30", "activity": "午饭，觉得生活要尽情体验", "location": "德国"},
+    {"start": "13:30", "end": "18:00", "activity": "发货、和小姨视频对账，奶粉生意最重要", "location": "德国"},
+    {"start": "18:00", "end": "08:00", "activity": "休息", "location": "德国"}
+  ]
+}

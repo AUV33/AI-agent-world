@@ -119,14 +119,20 @@ python continuous_runner.py --agents data/demo_agents.json --rounds 50
 
 ---
 
-## 五、计划 / 路线图（下一步）
+## 五、计划 / 路线图
 
-1. **统一运行时**：把 `enhanced_engine` 的全局变量（`envs/agents/msgCenter/bonds`）完全迁移到 `World` 单一事实源，消除两套状态并存。
-2. **羁绊叙事化**：关系纽带从「强度数值」升级为「可触发事件 / 可回忆叙事」。
-3. **欲望闭环**：让欲望真正驱动行为（主动发起会话、行动），而非仅记录。
-4. **记忆质量**：提升反思（reflection）质量与跨会话长期演化。
-5. **实验框架**：多世界并行、参数对照、相似度分析（`tools/compare_runs.py`）。
-6. **可视化 / 回放**：把 `events.jsonl` / 思考日志渲染为可回放界面。
+> **完整规划（唯一来源）：[`docs/规划-总览.md`](docs/规划-总览.md)**。这里只留当前的 Top 3。
+
+1. **人物**：7 个角色包 / 103 个角色条目的内心素材（`persona_cognitive` / `life` / `memory`）已全部补齐；
+   默认包 13 人的**心理参数**也已按五轴推导写到每人一套（`tools/psych_params.py`），11 个维度无全同、20 轮轨迹两两可区分。
+   **剩余**：其余 5 个包（JecAgents / malayaAgents / japanAgents / focus_agents / all_auv_agents）的 psych 轴分尚未填。
+   复核：`python tools/role_audit.py` 与 `python tools/psych_params.py --show`。
+2. **记忆取用补 relevance 维度**（零新依赖：Python 侧 bigram / SQLite FTS5）+ prompt 预算分层
+   （固定层永不丢 / 摘要层替换 / 检索层超预算先砍）。
+3. **对照仪器** `tools/arm_compare.py`：冻结剧本 + 双序盲评（两序一致才算赢）+ 符号检验与检出下限；
+   需要用户批准 API 花费后才能真跑（`D6`）。
+
+（历史路线图已并入规划文档；`World` 与 `engine` 全局的收敛、13 处 `except…pass` 转留痕等见规划文档 P2–P4。）
 
 ---
 

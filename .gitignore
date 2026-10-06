@@ -9,3 +9,10 @@ memory.db
 docs/
 # 本地密钥/环境配置（不入库；参考 .env.example）
 .env
+# 运行时产生的 per-agent 状态文件（不入库）
+psych_*.json
+life_*.json
+emotion_*.json
+
+# e2e 测试运行产物
+tools/data/

@@ -14,6 +14,7 @@ import os, sys, json, random, argparse
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJ)
 
+import enhanced_engine
 from continuous_runner import run, DEFAULT_BASE, DEFAULT_SPEED
 
 
@@ -63,8 +64,15 @@ def main():
     ap.add_argument("--seed", type=int, default=None, help="随机种子（可复现）")
     ap.add_argument("--out-dir", default=None, help="事件记录输出目录")
     ap.add_argument("--max-turns", type=int, default=None, help="最多派发多少次角色行动（调试用）")
+    ap.add_argument("--interval", type=float, default=None,
+                    help="固定每个角色行动间隔（模拟分钟），如 60 表示每轮一小时推进")
     ap.add_argument("--dry-run", action="store_true",
                     help="桩掉 LLM，仅验证调度逻辑，不烧 API")
+    ap.add_argument("--psychology", action="store_true",
+                    help="开启心理引擎（OCC）：S/vent 将写入 events（覆盖 world_config.json 的 psychology_enabled）")
+    ap.add_argument("--run-dir", default=None,
+                    help="★ 实验隔离目录：记忆/羁绊/心理状态/事件全放这里（对照实验必用）")
+    ap.add_argument("--resume", action="store_true", help="run-dir 已存在时接着跑")
     args = ap.parse_args()
 
     with open(args.agents, "r", encoding="utf-8") as f:
@@ -77,10 +85,15 @@ def main():
     print(f"[随机子集] 从 {len(names)} 人中抽取 {k} 人：{subset}")
 
     my_pid = os.getpid()
+    if args.psychology:
+        enhanced_engine.PSYCHOLOGY_ENABLED = True
+        print("[psychology] 已开启心理引擎（OCC），S/vent 将写入 events")
     try:
         run(args.agents, base_time=args.base, speed=args.speed,
             max_hours=args.hours, max_turns=args.max_turns, dry_run=args.dry_run,
-            out_dir=args.out_dir, subset=subset, common_scene=args.common_scene)
+            out_dir=args.out_dir, subset=subset, common_scene=args.common_scene,
+            interval_min=args.interval, run_dir=args.run_dir, resume=args.resume,
+            seed=args.seed)
     finally:
         cleanup_test_processes(my_pid)
 
